@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     }
 
     // ---------- GEMINI 2.5 FLASH branch ----------
-    if (model.startsWith("gemini")) {
+    if (model.startsWith("gemini-2.5-flash")) {
       // The Gemini v1beta endpoint is required for multimodal (image + text)
       const payload = {
         contents: [
