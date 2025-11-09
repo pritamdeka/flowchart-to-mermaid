@@ -149,69 +149,56 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// === Download PNG (fixed for Safari/Chrome) ===
-document.getElementById("downloadPng").addEventListener("click", async () => {
+// === Download JPEG (more reliable than PNG) ===
+document.getElementById("downloadJpeg").addEventListener("click", () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
 
-  // Ensure namespace
-  if (!svg.getAttribute("xmlns"))
+  if (!svg.getAttribute("xmlns")) {
     svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  }
 
-  // Clone SVG to avoid layout issues
-  const clonedSvg = svg.cloneNode(true);
-
-  // Calculate size (prefer viewBox)
-  const vb = svg.viewBox.baseVal;
-  const width = vb?.width || svg.clientWidth || 1024;
-  const height = vb?.height || svg.clientHeight || 768;
-
-  // Serialize to string
-  const serializer = new XMLSerializer();
-  const svgString = serializer.serializeToString(clonedSvg);
-
-  // Create Blob and object URL
-  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
   const svgUrl = URL.createObjectURL(svgBlob);
-
-  // Render on canvas
   const img = new Image();
-  img.crossOrigin = "anonymous";
+
   img.onload = () => {
     const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const vb = svg.viewBox.baseVal;
+    const width = vb?.width || 1024;
+    const height = vb?.height || 768;
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext("2d");
+
     ctx.fillStyle = "#ffffff";
-	const scale = 2.0; // 2× resolution
-	canvas.width = width * scale;
-	canvas.height = height * scale;
-	ctx.scale(scale, scale);
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
 
-    // Export PNG
     canvas.toBlob(
       (blob) => {
-        if (!blob) return showMessage("Error exporting PNG.");
-        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = url;
-        link.download = `${uploadedFileName}.png`;
+        link.href = URL.createObjectURL(blob);
+        link.download = `${uploadedFileName}.jpg`;
         link.click();
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(link.href);
       },
-      "image/png",
-      1.0
+      "image/jpeg",
+      0.95
     );
+
     URL.revokeObjectURL(svgUrl);
   };
+
   img.onerror = () => {
-    showMessage("Could not render PNG.");
+    showMessage("Error rendering JPEG.");
     URL.revokeObjectURL(svgUrl);
   };
+
   img.src = svgUrl;
 });
+
 
 
 
