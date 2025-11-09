@@ -203,16 +203,33 @@ document.getElementById("downloadJpeg").addEventListener("click", () => {
 
 
 // === Download MMD ===
+// === Download .MMD (safe UTF-8, cross-browser) ===
 document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to save.");
-  const blob = new Blob([code], { type: "text/plain" });
+
+  // Ensure proper UTF-8 encoding and file extension
+  const blob = new Blob([new TextEncoder().encode(code)], {
+    type: "text/plain;charset=utf-8",
+  });
+
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = `${uploadedFileName}.mmd`;
+
+  // Append temporarily for Safari compatibility
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(link.href);
+
+  // Delay revocation for safety
+  setTimeout(() => {
+    URL.revokeObjectURL(link.href);
+    link.remove();
+  }, 1000);
+
+  showMessage(`Saved ${uploadedFileName}.mmd`);
 });
+
 
 // === Helpers ===
 function debounce(fn, delay) {
