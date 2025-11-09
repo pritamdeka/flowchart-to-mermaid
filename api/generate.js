@@ -7,7 +7,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing image or model." });
     }
 
-    // ----------- GPT branch -----------
+    // ---------- GPT-4.x branch ----------
     if (model.startsWith("gpt-")) {
       const messages = [
         { role: "system", content: prompt },
@@ -15,7 +15,10 @@ export default async function handler(req, res) {
           role: "user",
           content: [
             { type: "text", text: "Convert this diagram image to valid Mermaid code." },
-            { type: "image_url", image_url: `data:image/png;base64,${image}` },
+            {
+              type: "image_url",
+              image_url: { url: `data:image/png;base64,${image}` }, // ✅ correct OpenAI format
+            },
           ],
         },
       ];
@@ -36,57 +39,45 @@ export default async function handler(req, res) {
       return res.status(200).json({ output });
     }
 
-    // ----------- GEMINI branch -----------
+    // ---------- GEMINI-2.5-FLASH branch ----------
     if (model.startsWith("gemini")) {
+      // Google GenAI uses /v1/models/... endpoint (not v1beta)
       const payload = {
         contents: [
           {
             role: "user",
             parts: [
-              { text: "Convert this diagram image to a clean Mermaid diagram." },
+              { text: "Convert this diagram image into a clean, valid Mermaid diagram." },
               { inlineData: { mimeType: "image/png", data: image } },
             ],
           },
         ],
-        systemInstruction: { parts: [{ text: prompt }] },
+        system_instruction: { parts: [{ text: prompt }] },
       };
 
-      let attempt = 0;
-      const maxRetries = 4;
-      let backoff = 4;
-
-      while (attempt < maxRetries) {
-        attempt++;
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-
-        const data = await response.json();
-        if (response.ok) {
-          const output = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-          return res.status(200).json({ output });
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         }
+      );
 
-        const errText = data?.error?.message || JSON.stringify(data);
-        if (response.status === 429 || response.status === 503) {
-          // retry with exponential backoff
-          await new Promise((r) => setTimeout(r, backoff * 1000));
-          backoff = Math.min(backoff * 2, 60);
-          continue;
-        }
-        throw new Error(errText);
-      }
-      throw new Error("Gemini API failed after retries.");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Gemini API error");
+
+      // Extract the Mermaid code only (remove markdown fences if present)
+      let output = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      output = output.replace(/```mermaid\s*/gi, "").replace(/```/g, "").trim();
+
+      return res.status(200).json({ output });
     }
 
+    // ---------- Unsupported ----------
     return res.status(400).json({ error: "Unsupported model selected." });
   } catch (err) {
-    console.error(err);
+    console.error("Error in handler:", err);
     res.status(500).json({ error: err.message });
   }
 }
