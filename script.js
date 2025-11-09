@@ -1,3 +1,5 @@
+document.addEventListener("DOMContentLoaded", () => {
+
 // === Compression utility for Mermaid.live ===
 function compressToPakoBase64(input) {
   const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
@@ -38,7 +40,7 @@ modelSelector.addEventListener("change", (e) => {
 });
 
 // === Image Preview ===
-function previewImage(event) {
+window.previewImage = function(event) {
   const file = event.target.files[0];
   const preview = document.getElementById("imagePreview");
   if (file) {
@@ -52,7 +54,7 @@ function previewImage(event) {
     };
     reader.readAsDataURL(file);
   }
-}
+};
 
 // === Generate Mermaid Code ===
 convertButton.addEventListener("click", generateMermaidCode);
@@ -196,26 +198,21 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// === Download .MMD (as text) ===
+// === Download .MMD ===
 document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value;
-  if (!code || !code.trim()) {
-    showMessage("No Mermaid code to save.");
-    return;
-  }
+  if (!code || !code.trim()) return showMessage("No Mermaid code to save.");
   const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
   const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = blobUrl;
   link.download = `${uploadedFileName}.mmd`;
   link.click();
-  setTimeout(() => {
-    window.URL.revokeObjectURL(blobUrl);
-  }, 500);
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 500);
   showMessage(`✅ Saved ${uploadedFileName}.mmd`);
 });
 
-// === Open in Mermaid Live Editor ===
+// === Mermaid Live Editor ===
 document.getElementById("openEditorButton").addEventListener("click", async () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to edit yet!");
@@ -227,7 +224,6 @@ document.getElementById("openEditorButton").addEventListener("click", async () =
     showMessage("Code copied! Opening Mermaid Live Editor...");
   } catch (err) {
     showMessage("Could not open editor or copy code.");
-    console.error(err);
   }
 });
 
@@ -258,7 +254,7 @@ document.getElementById("runAiButton")?.addEventListener("click", async () => {
   }
 });
 
-// === Utility ===
+// === Helpers ===
 function debounce(fn, delay) {
   let timeout;
   return (...args) => {
@@ -273,3 +269,5 @@ function showMessage(text) {
   box.classList.remove("hidden");
   setTimeout(() => box.classList.add("hidden"), 3000);
 }
+
+});
