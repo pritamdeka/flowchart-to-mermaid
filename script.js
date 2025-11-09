@@ -184,9 +184,56 @@ function deleteNode(label) {
   renderDiagram();
 }
 
+// === Download SVG ===
+document.getElementById("downloadSvg").addEventListener("click", () => {
+  const svg = renderTarget.querySelector("svg");
+  if (!svg) return showMessage("No diagram to download.");
+  const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${uploadedFileName}.svg`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+// === Download .MMD (as text) ===
+document.getElementById("downloadMmd").addEventListener("click", () => {
+  const code = mermaidTextarea.value;
+  if (!code || !code.trim()) {
+    showMessage("No Mermaid code to save.");
+    return;
+  }
+  const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+  const blobUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = `${uploadedFileName}.mmd`;
+  link.click();
+  setTimeout(() => {
+    window.URL.revokeObjectURL(blobUrl);
+  }, 500);
+  showMessage(`✅ Saved ${uploadedFileName}.mmd`);
+});
+
+// === Open in Mermaid Live Editor ===
+document.getElementById("openEditorButton").addEventListener("click", async () => {
+  const code = mermaidTextarea.value.trim();
+  if (!code) return showMessage("No Mermaid code to edit yet!");
+  try {
+    await navigator.clipboard.writeText(code);
+    const compressed = compressToPakoBase64(code);
+    const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
+    window.open(editorUrl, "_blank");
+    showMessage("Code copied! Opening Mermaid Live Editor...");
+  } catch (err) {
+    showMessage("Could not open editor or copy code.");
+    console.error(err);
+  }
+});
+
 // === AI Assistant ===
-document.getElementById("runAiButton").addEventListener("click", async () => {
-  const prompt = document.getElementById("aiPrompt").value.trim();
+document.getElementById("runAiButton")?.addEventListener("click", async () => {
+  const prompt = document.getElementById("aiPrompt")?.value.trim();
   const currentCode = mermaidTextarea.value.trim();
   if (!prompt) return showMessage("Enter a command for the AI Assistant.");
   if (!currentCode) return showMessage("No Mermaid code to edit.");
