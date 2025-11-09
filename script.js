@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // === Compression utility for Mermaid.live ===
+  // === Compression for Mermaid.live ===
   function compressToPakoBase64(input) {
     const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
     const data = new TextEncoder().encode(json);
@@ -8,34 +8,21 @@ document.addEventListener("DOMContentLoaded", () => {
     return btoa(str);
   }
 
-  // === Global Variables ===
+  // === Globals ===
   let uploadedBase64Image = null;
   let uploadedFileName = "diagram";
   let selectedModel = "gpt-4.1";
 
-  // === DOM Elements ===
   const modelSelector = document.getElementById("modelSelector");
   const convertButton = document.getElementById("convertButton");
   const mermaidTextarea = document.getElementById("mermaidCode");
   const renderTarget = document.getElementById("mermaidRenderTarget");
   const previewMessage = document.getElementById("previewMessage");
   const loadingOverlay = document.getElementById("loadingOverlay");
-  const downloadSvgBtn = document.getElementById("downloadSvg");
-  const downloadMmdBtn = document.getElementById("downloadMmd");
-  const updatePreviewBtn = document.getElementById("updatePreview");
-  const openEditorBtn = document.getElementById("openEditorButton");
 
-  // === Mermaid Init ===
   mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
 
-  // === Debug check ===
-  console.log("✅ JS loaded, buttons found:", {
-    downloadSvg: !!downloadSvgBtn,
-    downloadMmd: !!downloadMmdBtn,
-    convert: !!convertButton,
-  });
-
-  // === Model change handler ===
+  // === Model switching ===
   modelSelector.addEventListener("change", (e) => {
     selectedModel = e.target.value;
     uploadedBase64Image = null;
@@ -76,10 +63,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === Generate Mermaid Code ===
   convertButton.addEventListener("click", generateMermaidCode);
-
   async function generateMermaidCode() {
-    if (!uploadedBase64Image)
-      return showMessage("Please upload an image first.");
+    if (!uploadedBase64Image) return showMessage("Please upload an image first.");
     convertButton.disabled = true;
     loadingOverlay.classList.remove("hidden");
     document.getElementById("results").classList.remove("hidden");
@@ -92,13 +77,10 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: uploadedBase64Image, model: selectedModel }),
       });
-
       const result = await response.json();
       if (result.error) throw new Error(result.error);
-
       const code = result.output?.trim();
       if (!code) throw new Error("No Mermaid code returned.");
-
       mermaidTextarea.value = code;
       renderDiagram();
     } catch (err) {
@@ -109,10 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // === Render Mermaid Diagram ===
-  updatePreviewBtn.addEventListener("click", renderDiagram);
+  // === Render Mermaid ===
+  document.getElementById("updatePreview").addEventListener("click", renderDiagram);
   mermaidTextarea.addEventListener("input", debounce(renderDiagram, 600));
-
   async function renderDiagram() {
     const code = mermaidTextarea.value.trim();
     renderTarget.innerHTML = "";
@@ -135,24 +116,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // === Open in Mermaid Live Editor ===
-  openEditorBtn.addEventListener("click", async () => {
-    const code = mermaidTextarea.value.trim();
-    if (!code) return showMessage("No Mermaid code to edit yet!");
-    try {
-      await navigator.clipboard.writeText(code);
-      const compressed = compressToPakoBase64(code);
-      const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
-      window.open(editorUrl, "_blank");
-      showMessage("Code copied! Opening Mermaid Live Editor...");
-    } catch (err) {
-      showMessage("Could not open editor or copy code.");
-      console.error(err);
-    }
-  });
-
-  // === Download SVG ===
-  downloadSvgBtn.addEventListener("click", () => {
+  // === Download SVG & MMD ===
+  document.getElementById("downloadSvg").addEventListener("click", () => {
     const svg = renderTarget.querySelector("svg");
     if (!svg) return showMessage("No diagram to download.");
     const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
@@ -165,28 +130,58 @@ document.addEventListener("DOMContentLoaded", () => {
       URL.revokeObjectURL(link.href);
       link.remove();
     }, 500);
-    showMessage(`✅ Saved ${uploadedFileName}.svg`);
   });
 
-  // === Download .MMD file (fully fixed) ===
-  downloadMmdBtn.addEventListener("click", () => {
+  document.getElementById("downloadMmd").addEventListener("click", () => {
     const code = mermaidTextarea.value.trim();
-    if (!code) {
-      showMessage("No Mermaid code to save.");
-      return;
-    }
+    if (!code) return showMessage("No Mermaid code to save.");
     const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
-    const blobUrl = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `${uploadedFileName || "diagram"}.mmd`;
+    link.href = URL.createObjectURL(blob);
+    link.download = `${uploadedFileName}.mmd`;
     document.body.appendChild(link);
     link.click();
-    setTimeout(() => {
-      window.URL.revokeObjectURL(blobUrl);
-      link.remove();
-    }, 1000);
-    showMessage(`✅ Saved ${uploadedFileName}.mmd`);
+    setTimeout(() => link.remove(), 500);
+  });
+
+  // === Open in Mermaid Live ===
+  document.getElementById("openEditorButton").addEventListener("click", async () => {
+    const code = mermaidTextarea.value.trim();
+    if (!code) return showMessage("No Mermaid code to edit yet!");
+    const compressed = compressToPakoBase64(code);
+    const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
+    window.open(editorUrl, "_blank");
+    showMessage("Opening Mermaid Live Editor...");
+  });
+
+  // === AI Assistant Integration ===
+  document.getElementById("runAiButton").addEventListener("click", async () => {
+    const prompt = document.getElementById("aiPrompt").value.trim();
+    const currentCode = mermaidTextarea.value.trim();
+    if (!prompt) return showMessage("Enter a command for the AI Assistant.");
+    if (!currentCode) return showMessage("No Mermaid code to edit.");
+
+    showMessage("🤖 AI is updating your diagram...");
+    loadingOverlay.classList.remove("hidden");
+
+    try {
+      const response = await fetch("/api/ai-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, currentCode })
+      });
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+
+      mermaidTextarea.value = result.updatedCode;
+      renderDiagram();
+      document.getElementById("aiPrompt").value = "";
+      showMessage("✨ Diagram updated by AI!");
+    } catch (err) {
+      showMessage("AI update failed: " + err.message);
+    } finally {
+      loadingOverlay.classList.add("hidden");
+    }
   });
 
   // === Helpers ===

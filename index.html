@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Diagram to Mermaid Converter</title>
+  <title>Diagram to Mermaid Converter + AI Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -16,16 +16,19 @@
       Diagram to Mermaid Converter
     </h1>
     <p class="text-center text-gray-600 mb-6">
-      Upload a diagram image → Generate Mermaid code → Edit or export.
+      Upload a diagram → Generate Mermaid code → Edit or update using AI.
     </p>
 
-    <!-- Upload + model section -->
+    <!-- Upload Section -->
     <div class="bg-white rounded-xl shadow-md p-6 space-y-4">
-      <input type="file" id="imageInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg" class="hidden" onchange="previewImage(event)" />
+      <input type="file" id="imageInput"
+        accept=".png,.jpg,.jpeg,.gif,.webp,.svg"
+        class="hidden"
+        onchange="previewImage(event)" />
       <label for="imageInput"
         class="block w-full p-6 border-2 border-dashed border-indigo-300 rounded-lg text-center cursor-pointer hover:bg-indigo-50 transition">
         <span class="text-indigo-600 font-semibold">Click to upload an image</span>
-        <p class="text-xs text-gray-500 mt-1">Supported: PNG, JPG, JPEG, WEBP, GIF</p>
+        <p class="text-xs text-gray-500 mt-1">Supported: PNG, JPG, JPEG, WEBP, GIF, SVG</p>
       </label>
 
       <div class="flex justify-center">
@@ -48,7 +51,7 @@
         disabled>Generate Code</button>
     </div>
 
-    <!-- Results -->
+    <!-- Results Section -->
     <div id="results" class="hidden bg-white rounded-xl shadow-md p-6 space-y-4">
       <h2 class="text-xl font-semibold text-indigo-700">Generated Mermaid Code</h2>
 
@@ -64,35 +67,46 @@
           class="flex-1 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600">
           Download SVG
         </button>
-        <!--<button id="downloadJpeg"
-		  class="flex-1 py-2 bg-pink-500 text-white font-semibold rounded-lg hover:bg-pink-600">
-		  Download JPEG
-		</button>-->
         <button id="downloadMmd"
           class="flex-1 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600">
-          Save .MMD File
+          Save .MMD
         </button>
         <button id="openEditorButton"
           class="flex-1 py-2 bg-yellow-400 text-gray-800 font-semibold rounded-lg hover:bg-yellow-500">
-          Edit in Mermaid Live Editor ↗
+          Edit in Mermaid Live ↗
         </button>
       </div>
 
+      <!-- Diagram Preview -->
       <div id="diagramPreview"
-        class="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-center items-center min-h-[200px]">
+        class="relative p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-center items-center min-h-[200px]">
         <p id="previewMessage" class="text-gray-500">Diagram preview will appear here.</p>
         <div id="mermaidRenderTarget" class="w-full"></div>
       </div>
     </div>
 
-    <!-- Loading spinner overlay -->
-    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <!-- === AI Assistant Section === -->
+    <div id="aiSection" class="bg-white rounded-xl shadow-md p-6 space-y-3">
+      <h3 class="text-lg font-semibold text-indigo-700">🤖 AI Assistant</h3>
+      <textarea id="aiPrompt" rows="2"
+        placeholder="e.g., Add a decision node after Step 2 labeled 'Check Status'..."
+        class="w-full p-2 border border-gray-300 rounded-lg text-sm"></textarea>
+      <button id="runAiButton"
+        class="w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition">
+        ✨ Apply with AI
+      </button>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingOverlay"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="flex flex-col items-center space-y-2">
         <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-white"></div>
-        <p class="text-white text-sm font-medium">Generating diagram, please wait...</p>
+        <p class="text-white text-sm font-medium">Processing, please wait...</p>
       </div>
     </div>
 
+    <!-- Notification -->
     <div id="messageBox"
       class="hidden fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-lg shadow-lg text-sm font-medium"></div>
   </div>
