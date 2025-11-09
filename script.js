@@ -150,65 +150,69 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
 });
 
 // === Download PNG (fixed for Safari/Chrome) ===
-document.getElementById("downloadPng").addEventListener("click", () => {
+document.getElementById("downloadPng").addEventListener("click", async () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
 
-  // Ensure the SVG has a proper namespace
-  if (!svg.getAttribute("xmlns")) {
+  // Ensure namespace
+  if (!svg.getAttribute("xmlns"))
     svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  }
 
-  // Serialize SVG to string
-  const svgData = new XMLSerializer().serializeToString(svg);
-  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+  // Clone SVG to avoid layout issues
+  const clonedSvg = svg.cloneNode(true);
+
+  // Calculate size (prefer viewBox)
+  const vb = svg.viewBox.baseVal;
+  const width = vb?.width || svg.clientWidth || 1024;
+  const height = vb?.height || svg.clientHeight || 768;
+
+  // Serialize to string
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(clonedSvg);
+
+  // Create Blob and object URL
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
   const svgUrl = URL.createObjectURL(svgBlob);
 
+  // Render on canvas
   const img = new Image();
-  img.crossOrigin = "anonymous"; // Fixes canvas tainting issue
-
+  img.crossOrigin = "anonymous";
   img.onload = () => {
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    // Handle viewBox dimensions
-    const vb = svg.viewBox.baseVal;
-    const width = vb?.width || img.width || 1024;
-    const height = vb?.height || img.height || 768;
-
     canvas.width = width;
     canvas.height = height;
-
-    // Fill white background (optional)
+    const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
+	const scale = 2.0; // 2× resolution
+	canvas.width = width * scale;
+	canvas.height = height * scale;
+	ctx.scale(scale, scale);
     ctx.fillRect(0, 0, width, height);
-
     ctx.drawImage(img, 0, 0, width, height);
 
-    // Convert canvas to PNG blob
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        showMessage("Failed to create PNG blob.");
-        return;
-      }
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `${uploadedFileName}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-    }, "image/png");
-
-    // Cleanup
+    // Export PNG
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return showMessage("Error exporting PNG.");
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${uploadedFileName}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+      },
+      "image/png",
+      1.0
+    );
     URL.revokeObjectURL(svgUrl);
   };
-
   img.onerror = () => {
-    showMessage("Error converting SVG to PNG.");
+    showMessage("Could not render PNG.");
     URL.revokeObjectURL(svgUrl);
   };
-
   img.src = svgUrl;
 });
+
 
 
 // === Download MMD ===
