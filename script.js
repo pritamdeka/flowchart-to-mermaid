@@ -1,3 +1,4 @@
+// === Compression utility for Mermaid.live ===
 function compressToPakoBase64(input) {
   const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
   const data = new TextEncoder().encode(json);
@@ -6,10 +7,12 @@ function compressToPakoBase64(input) {
   return btoa(str);
 }
 
+// === Global Variables ===
 let uploadedBase64Image = null;
 let uploadedFileName = "diagram";
 let selectedModel = "gpt-4.1";
 
+// === DOM Elements ===
 const modelSelector = document.getElementById("modelSelector");
 const convertButton = document.getElementById("convertButton");
 const mermaidTextarea = document.getElementById("mermaidCode");
@@ -17,10 +20,10 @@ const renderTarget = document.getElementById("mermaidRenderTarget");
 const previewMessage = document.getElementById("previewMessage");
 const loadingOverlay = document.getElementById("loadingOverlay");
 
-convertButton.addEventListener("click", generateMermaidCode);
+// === Mermaid Init ===
 mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
 
-// --- Model Switching ---
+// === Handlers ===
 modelSelector.addEventListener("change", (e) => {
   selectedModel = e.target.value;
   uploadedBase64Image = null;
@@ -33,16 +36,16 @@ modelSelector.addEventListener("change", (e) => {
   showMessage(`Model switched to ${selectedModel}.`);
 });
 
-// --- Filename Cleanup ---
+// === File name cleaner ===
 function cleanFileName(name) {
   name = name.split(".")[0];
-  name = name.replace(/[_\-\s]*\d{2,5}x\d{2,5}[_\-\s]*/gi, ""); // remove 123x456 suffixes
+  name = name.replace(/[_\-\s]*\d{2,5}x\d{2,5}[_\-\s]*/gi, "");
   name = name.replace(/[^a-zA-Z0-9_\-]/g, "_");
   if (name.length > 30) name = name.substring(0, 30);
   return name || "diagram";
 }
 
-// --- Preview Image ---
+// === Image Preview ===
 function previewImage(event) {
   const file = event.target.files[0];
   const preview = document.getElementById("imagePreview");
@@ -59,7 +62,9 @@ function previewImage(event) {
   }
 }
 
-// --- Generate Mermaid Code ---
+// === Generate Mermaid Code ===
+convertButton.addEventListener("click", generateMermaidCode);
+
 async function generateMermaidCode() {
   if (!uploadedBase64Image) return showMessage("Please upload an image first.");
   convertButton.disabled = true;
@@ -87,11 +92,10 @@ async function generateMermaidCode() {
   } finally {
     loadingOverlay.classList.add("hidden");
     convertButton.disabled = false;
-    convertButton.textContent = "Generate Code";
   }
 }
 
-// --- Render Diagram ---
+// === Render Mermaid Diagram ===
 document.getElementById("updatePreview").addEventListener("click", renderDiagram);
 mermaidTextarea.addEventListener("input", debounce(renderDiagram, 600));
 
@@ -117,24 +121,23 @@ async function renderDiagram() {
   }
 }
 
-// --- Open in Mermaid Live Editor (auto copy + title) ---
+// === Open in Mermaid Live Editor (fixed) ===
 document.getElementById("openEditorButton").addEventListener("click", async () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to edit yet!");
   try {
     await navigator.clipboard.writeText(code);
     const compressed = compressToPakoBase64(code);
-    const encodedName = encodeURIComponent(uploadedFileName);
-    const editorUrl = `https://mermaid.live/edit#title=${encodedName}.mmd&pako:${compressed}`;
+    const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
     window.open(editorUrl, "_blank");
-    showMessage(`Copied and opening "${uploadedFileName}.mmd" in new tab...`);
+    showMessage("Code copied! Opening Mermaid Live Editor...");
   } catch (err) {
     showMessage("Could not open editor or copy code.");
     console.error(err);
   }
 });
 
-// --- Download SVG ---
+// === Download SVG ===
 document.getElementById("downloadSvg").addEventListener("click", () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
@@ -146,25 +149,27 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// --- Download PNG ---
+// === Download PNG (fixed for Safari/Chrome) ===
 document.getElementById("downloadPng").addEventListener("click", () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
+
   const svgData = new XMLSerializer().serializeToString(svg);
-  const img = new Image();
   const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
 
   img.onload = () => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = img.width * ratio;
-    canvas.height = img.height * ratio;
-    ctx.scale(ratio, ratio);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
+    const viewBox = svg.viewBox.baseVal;
+    const width = viewBox?.width || img.width;
+    const height = viewBox?.height || img.height;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
     canvas.toBlob((blob) => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -172,11 +177,12 @@ document.getElementById("downloadPng").addEventListener("click", () => {
       link.click();
       URL.revokeObjectURL(link.href);
     }, "image/png");
+    URL.revokeObjectURL(url);
   };
   img.src = url;
 });
 
-// --- Download MMD ---
+// === Download MMD ===
 document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to save.");
@@ -188,7 +194,7 @@ document.getElementById("downloadMmd").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// --- Helpers ---
+// === Helpers ===
 function debounce(fn, delay) {
   let timeout;
   return (...args) => {
