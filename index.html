@@ -11,6 +11,19 @@
 </head>
 
 <body class="bg-gray-100 text-gray-800 font-sans p-6">
+  <!-- Node Palette -->
+  <div id="nodePalette"
+    class="fixed left-4 top-1/4 bg-white rounded-xl shadow-lg p-4 space-y-2 border border-gray-200 z-50">
+    <h4 class="font-semibold text-indigo-700 mb-2 text-sm">Drag Nodes</h4>
+    <div draggable="true" data-shape="process" class="cursor-grab px-2 py-1 bg-indigo-100 rounded">Process</div>
+    <div draggable="true" data-shape="decision" class="cursor-grab px-2 py-1 bg-yellow-100 rounded">Decision</div>
+    <div draggable="true" data-shape="terminator" class="cursor-grab px-2 py-1 bg-red-100 rounded">Start / End</div>
+    <div draggable="true" data-shape="io" class="cursor-grab px-2 py-1 bg-green-100 rounded">Input / Output</div>
+    <div draggable="true" data-shape="subroutine" class="cursor-grab px-2 py-1 bg-blue-100 rounded">Subroutine</div>
+    <div draggable="true" data-shape="database" class="cursor-grab px-2 py-1 bg-purple-100 rounded">Database</div>
+    <div draggable="true" data-shape="note" class="cursor-grab px-2 py-1 bg-gray-100 rounded">Note</div>
+  </div>
+
   <div class="max-w-4xl mx-auto space-y-6 relative">
     <h1 class="text-3xl font-bold text-center text-indigo-700">
       Diagram to Mermaid Converter
@@ -21,7 +34,8 @@
 
     <!-- Upload + model section -->
     <div class="bg-white rounded-xl shadow-md p-6 space-y-4">
-      <input type="file" id="imageInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg" class="hidden" onchange="previewImage(event)" />
+      <input type="file" id="imageInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg"
+        class="hidden" onchange="previewImage(event)" />
       <label for="imageInput"
         class="block w-full p-6 border-2 border-dashed border-indigo-300 rounded-lg text-center cursor-pointer hover:bg-indigo-50 transition">
         <span class="text-indigo-600 font-semibold">Click to upload an image</span>

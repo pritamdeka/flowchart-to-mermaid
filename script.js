@@ -185,7 +185,49 @@ function deleteNode(label) {
   renderDiagram();
 }
 
-// === Download SVG ===
+// === Drag-and-Drop Node Palette ===
+const nodePalette = document.getElementById("nodePalette");
+const diagramArea = document.getElementById("diagramPreview");
+
+let draggedShape = null;
+
+nodePalette.querySelectorAll("[draggable='true']").forEach((item) => {
+  item.addEventListener("dragstart", (e) => {
+    draggedShape = e.target.dataset.shape;
+  });
+});
+
+diagramArea.addEventListener("dragover", (e) => e.preventDefault());
+
+diagramArea.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (!draggedShape) return;
+  
+  const id = prompt(`Enter ID for the new ${draggedShape}:`);
+  const label = prompt("Enter label:");
+  if (!id || !label) return;
+
+  let shapeSyntax = "";
+  switch (draggedShape) {
+    case "process": shapeSyntax = `${id}[${label}]`; break;
+    case "decision": shapeSyntax = `${id}{${label}}`; break;
+    case "terminator": shapeSyntax = `${id}([${label}])`; break;
+    case "io": shapeSyntax = `${id}[/ ${label} /]`; break;
+    case "subroutine": shapeSyntax = `${id}[[${label}]]`; break;
+    case "database": shapeSyntax = `${id}((${label}))`; break;
+    case "note": shapeSyntax = `${id}["${label}"]`; break;
+  }
+
+  let code = mermaidTextarea.value.trim();
+  if (!code.startsWith("graph") && !code.startsWith("flowchart")) code = "flowchart TD\n" + code;
+  code += `\n${shapeSyntax}`;
+  mermaidTextarea.value = code;
+  renderDiagram();
+  showMessage(`Added new ${draggedShape}: ${label}`);
+  draggedShape = null;
+});
+
+// === Downloads, AI Assistant, and Helpers (unchanged) ===
 document.getElementById("downloadSvg").addEventListener("click", () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
@@ -197,7 +239,6 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// === Download .MMD ===
 document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value;
   if (!code || !code.trim()) return showMessage("No Mermaid code to save.");
@@ -211,7 +252,6 @@ document.getElementById("downloadMmd").addEventListener("click", () => {
   showMessage(`✅ Saved ${uploadedFileName}.mmd`);
 });
 
-// === Mermaid Live Editor ===
 document.getElementById("openEditorButton").addEventListener("click", async () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to edit yet!");
