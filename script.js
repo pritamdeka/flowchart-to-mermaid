@@ -15,7 +15,16 @@ let uploadedFileName = "diagram";
 let selectedModel = "gpt-4.1";
 let deleteMode = false;
 
+// Zoom + Pan globals
+let scale = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let startX = 0;
+let startY = 0;
+
 // === DOM Elements ===
+const scrollBox = document.getElementById("diagramScrollBox");
 const modelSelector = document.getElementById("modelSelector");
 const convertButton = document.getElementById("convertButton");
 const mermaidTextarea = document.getElementById("mermaidCode");
@@ -110,7 +119,9 @@ async function renderDiagram() {
     renderTarget.appendChild(tempDiv);
     await mermaid.run({ nodes: [tempDiv] });
     previewMessage.classList.add("hidden");
-	autoScaleDiagram();
+
+    autoScaleDiagram();
+    applyTransform();
     enableInlineEditing();
   } catch {
     previewMessage.textContent = "Invalid Mermaid syntax.";
@@ -162,7 +173,7 @@ diagramArea.addEventListener("dragover", (e) => e.preventDefault());
 diagramArea.addEventListener("drop", (e) => {
   e.preventDefault();
   if (!draggedShape) return;
-  
+
   const id = prompt(`Enter ID for the new ${draggedShape}:`);
   const label = prompt("Enter label:");
   if (!id || !label) return;
@@ -204,13 +215,13 @@ document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value;
   if (!code || !code.trim()) return showMessage("No Mermaid code to save.");
   const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
-  const blobUrl = window.URL.createObjectURL(blob);
+  const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = blobUrl;
+  link.href = url;
   link.download = `${uploadedFileName}.mmd`;
   link.click();
-  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 500);
-  showMessage(`✅ Saved ${uploadedFileName}.mmd`);
+  setTimeout(() => window.URL.revokeObjectURL(url), 500);
+  showMessage(`Saved ${uploadedFileName}.mmd`);
 });
 
 // === Mermaid Live Editor ===
@@ -222,13 +233,13 @@ document.getElementById("openEditorButton").addEventListener("click", async () =
     const compressed = compressToPakoBase64(code);
     const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
     window.open(editorUrl, "_blank");
-    showMessage("Code copied! Opening Mermaid Live Editor...");
-  } catch (err) {
+    showMessage("Opening Mermaid Live Editor...");
+  } catch {
     showMessage("Could not open editor or copy code.");
   }
 });
 
-// === AI Assistant ===
+// === AI Editing ===
 document.getElementById("runAiButton")?.addEventListener("click", async () => {
   const prompt = document.getElementById("aiPrompt")?.value.trim();
   const currentCode = mermaidTextarea.value.trim();
@@ -236,18 +247,22 @@ document.getElementById("runAiButton")?.addEventListener("click", async () => {
   if (!currentCode) return showMessage("No Mermaid code to edit.");
 
   loadingOverlay.classList.remove("hidden");
+
   try {
     const res = await fetch("/api/ai-edit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, currentCode }),
     });
+
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+
     mermaidTextarea.value = data.updatedCode;
     renderDiagram();
+
     document.getElementById("aiPrompt").value = "";
-    showMessage("✨ Updated by AI!");
+    showMessage("Updated by AI!");
   } catch (e) {
     showMessage("AI failed: " + e.message);
   } finally {
@@ -264,6 +279,90 @@ function debounce(fn, delay) {
   };
 }
 
+// === ZOOM + PAN FUNCTIONS ===
+function applyTransform() {
+  const svg = renderTarget.querySelector("svg");
+  if (!svg) return;
+  svg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  svg.style.transformOrigin = "top left";
+}
+
+function zoomIn() {
+  scale *= 1.15;
+  applyTransform();
+}
+
+function zoomOut() {
+  scale /= 1.15;
+  applyTransform();
+}
+
+function resetZoom() {
+  scale = 1;
+  panX = 0;
+  panY = 0;
+  applyTransform();
+}
+
+function fitToScreen() {
+  const svg = renderTarget.querySelector("svg");
+  if (!svg) return;
+
+  const boxWidth = scrollBox.clientWidth;
+  const boxHeight = scrollBox.clientHeight;
+
+  const svgWidth = svg.viewBox.baseVal.width || svg.getBBox().width;
+  const svgHeight = svg.viewBox.baseVal.height || svg.getBBox().height;
+
+  const scaleW = boxWidth / svgWidth;
+  const scaleH = boxHeight / svgHeight;
+
+  scale = Math.min(scaleW, scaleH);
+  panX = 0;
+  panY = 0;
+
+  applyTransform();
+}
+
+// === Wheel Zoom ===
+scrollBox.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1.1 : 0.9;
+    scale *= delta;
+    applyTransform();
+  },
+  { passive: false }
+);
+
+// === Drag to Pan ===
+scrollBox.addEventListener("mousedown", (e) => {
+  isPanning = true;
+  startX = e.clientX - panX;
+  startY = e.clientY - panY;
+});
+
+scrollBox.addEventListener("mousemove", (e) => {
+  if (!isPanning) return;
+  panX = e.clientX - startX;
+  panY = e.clientY - startY;
+  applyTransform();
+});
+
+scrollBox.addEventListener("mouseup", () => (isPanning = false));
+scrollBox.addEventListener("mouseleave", () => (isPanning = false));
+
+// === Scaling Control for SVG ===
+function autoScaleDiagram() {
+  const svg = renderTarget.querySelector("svg");
+  if (!svg) return;
+  svg.style.maxWidth = "100%";
+  svg.style.height = "auto";
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+}
+
+// === UI Messages ===
 function showMessage(text) {
   const box = document.getElementById("messageBox");
   box.textContent = text;
@@ -271,17 +370,10 @@ function showMessage(text) {
   setTimeout(() => box.classList.add("hidden"), 3000);
 }
 
-function autoScaleDiagram() {
-  const svg = renderTarget.querySelector("svg");
-  if (!svg) return;
-
-  svg.style.maxWidth = "100%";
-  svg.style.height = "auto";
-  svg.style.objectFit = "contain";
-
-  // Prevent huge SVG vertical overflow
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-}
-
+// === Zoom Button Events ===
+document.getElementById("zoomInBtn")?.addEventListener("click", zoomIn);
+document.getElementById("zoomOutBtn")?.addEventListener("click", zoomOut);
+document.getElementById("zoomResetBtn")?.addEventListener("click", resetZoom);
+document.getElementById("zoomFitBtn")?.addEventListener("click", fitToScreen);
 
 });
