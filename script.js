@@ -110,6 +110,7 @@ async function renderDiagram() {
     renderTarget.appendChild(tempDiv);
     await mermaid.run({ nodes: [tempDiv] });
     previewMessage.classList.add("hidden");
+	autoScaleDiagram();
     enableInlineEditing();
   } catch {
     previewMessage.textContent = "Invalid Mermaid syntax.";
@@ -269,5 +270,18 @@ function showMessage(text) {
   box.classList.remove("hidden");
   setTimeout(() => box.classList.add("hidden"), 3000);
 }
+
+function autoScaleDiagram() {
+  const svg = renderTarget.querySelector("svg");
+  if (!svg) return;
+
+  svg.style.maxWidth = "100%";
+  svg.style.height = "auto";
+  svg.style.objectFit = "contain";
+
+  // Prevent huge SVG vertical overflow
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+}
+
 
 });
