@@ -9,7 +9,8 @@
 
 let uploadedBase64Image = null;
 let uploadedFileName = "diagram";
-let selectedModel = "gpt-4.1"; // Keeping this model name as per your instruction
+// Keeping this model name as requested
+let selectedModel = "gpt-4.1"; 
 let userApiKey = null; // Key is null until loaded/entered
 
 // Get key DOM elements needed globally
@@ -128,12 +129,12 @@ document.addEventListener("DOMContentLoaded", () => {
             modal.className =
                 "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
 
-            // Modal HTML structure
+            // Modal HTML structure - Note: input type is set to "password" for masking.
             modal.innerHTML = `
                 <div class="bg-white rounded-xl shadow-xl p-6 w-96 space-y-4 text-gray-700">
                     <h2 class="text-lg font-semibold text-indigo-600 text-center">API Key Required</h2>
                     <p class="text-sm text-gray-500 text-center">This feature requires your API key for the selected model.</p>
-                    <input type="text" id="modalApiKeyInput" placeholder="Paste API key here (e.g., sk-...)"
+                    <input type="password" id="modalApiKeyInput" placeholder="Paste API key here (e.g., sk-...)"
                                 class="w-full border border-gray-300 p-2 rounded focus:ring-indigo-500 focus:border-indigo-500" />
                     <div class="flex items-center gap-2">
                         <label for="apiKeyFileInput" class="cursor-pointer px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded hover:bg-gray-200">
@@ -200,7 +201,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // 2. Quick Key Validation (client-side guess)
-        // This is a basic check; server does the full check
         const isGpt = selectedModel.startsWith("gpt-");
         if (isGpt && !userApiKey.startsWith("sk-")) {
             return showMessage("Invalid API key format for GPT models (expected 'sk-').");
@@ -251,9 +251,6 @@ document.addEventListener("DOMContentLoaded", () => {
             showMessage("Code generated successfully!");
         } catch (err) {
             showMessage("Error: " + err.message);
-            // Fallback for demo/testing if API fails:
-            // mermaidTextarea.value = "flowchart TD\nA[Start] --> B{Error Occurred};\nB --> C(End);";
-            // renderDiagram();
         } finally {
             loadingOverlay.classList.add("hidden");
             convertButton.disabled = false;
@@ -284,10 +281,6 @@ document.addEventListener("DOMContentLoaded", () => {
             // Scroll to top-left when rendering new diagram
             diagramScrollBox.scrollLeft = 0;
             diagramScrollBox.scrollTop = 0;
-            
-            // Note: Removed autoScaleDiagram and applyTransform for simplicity, 
-            // you should re-add them if they contain zoom/pan logic.
-            // enableInlineEditing() also requires additional complex code.
             
         } catch (e) {
             previewMessage.textContent = "Invalid Mermaid syntax. Check the console for details.";
