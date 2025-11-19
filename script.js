@@ -13,6 +13,10 @@ let uploadedFileName = "diagram";
 let selectedModel = "gpt-4.1"; 
 let userApiKey = null; // Key is null until loaded/entered
 
+// === NEW GLOBAL STATE FOR ZOOM ===
+let currentZoom = 1.0; 
+// ===================================
+
 // Get key DOM elements needed globally
 const imagePreview = document.getElementById("imagePreview");
 const convertButton = document.getElementById("convertButton");
@@ -26,14 +30,25 @@ const messageBox = document.getElementById("messageBox");
 
 /**
  * Creates a URL for the Mermaid Live Editor by compressing the code.
+ * This version uses the standard pako compression method required by #pako: prefix.
  * @param {string} input The Mermaid code.
  * @returns {string} The base64 compressed string.
  */
 function compressToPakoBase64(input) {
     const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
     const data = new TextEncoder().encode(json);
-    const deflated = pako.deflate(data, { to: 'string' });
-    return btoa(String.fromCharCode.apply(null, deflated));
+    
+    // 1. Deflate the data (output is a Uint8Array)
+    const deflated = pako.deflate(data, { level: 9 }); 
+    
+    // 2. Convert the Uint8Array to a binary string
+    let binaryString = '';
+    for (let i = 0; i < deflated.length; i++) {
+        binaryString += String.fromCharCode(deflated[i]);
+    }
+
+    // 3. Base64 encode the binary string
+    return btoa(binaryString);
 }
 
 
@@ -98,6 +113,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const diagramScrollBox = document.getElementById("diagramScrollBox");
     const aiPromptInput = document.getElementById("aiPrompt");
     const runAiButton = document.getElementById("runAiButton");
+    
+    // Zoom button references
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const zoomResetBtn = document.getElementById('zoomResetBtn');
+    const zoomFitBtn = document.getElementById('zoomFitBtn');
 
 
     // === Mermaid Init ===
@@ -224,8 +245,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // === Generate Mermaid Code (Core API Call Logic) ===
     convertButton.addEventListener("click", async () => {
         if (!uploadedBase64Image) return showMessage("Please upload an image first.");
-
-        // We removed the key check here and moved it inside generateMermaidCode()
         generateMermaidCode();
     });
 
@@ -246,7 +265,6 @@ document.addEventListener("DOMContentLoaded", () => {
         // 2. Quick Key Validation (client-side guess)
         const isGpt = selectedModel.startsWith("gpt-");
         if (isGpt && !userApiKey.startsWith("sk-")) {
-            // NOTE: This client-side validation should rarely be hit now, as promptForApiKey handles it.
             userApiKey = null;
             return showMessage("Invalid API key format for GPT models (expected 'sk-').");
         }
@@ -286,11 +304,26 @@ document.addEventListener("DOMContentLoaded", () => {
             showMessage("Code generated successfully!");
         } catch (err) {
             showMessage("Error: " + err.message);
-            // FIX: Reset API key on server/network error (in case server validation failed)
+            // FIX: Reset API key on server/network error
             userApiKey = null; 
         } finally {
             loadingOverlay.classList.add("hidden");
             convertButton.disabled = false;
+        }
+    }
+
+    // === Helper function to apply the current zoom level ===
+    function applyZoomTransform() {
+        const svgElement = renderTarget.querySelector('svg');
+        if (svgElement) {
+            // Find the wrapper element that Mermaid places around the SVG content
+            const graphContainer = svgElement.closest('div'); 
+            if (graphContainer) {
+                // Apply the scale transformation to the wrapper div
+                graphContainer.style.transform = `scale(${currentZoom})`;
+                // Set the origin to top-left for predictable scaling
+                graphContainer.style.transformOrigin = '0 0'; 
+            }
         }
     }
 
@@ -314,6 +347,10 @@ document.addEventListener("DOMContentLoaded", () => {
             // Use the standard Mermaid API run/render methods
             const { svg } = await mermaid.render('mermaidSvg', code);
             renderTarget.innerHTML = svg;
+
+            // Immediately reset zoom after rendering a new diagram
+            currentZoom = 1.0; 
+            applyZoomTransform();
 
             // Scroll to top-left when rendering new diagram
             diagramScrollBox.scrollLeft = 0;
@@ -368,25 +405,112 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // 3. Open in Mermaid Live Editor (Uses pako compression)
     document.getElementById('openEditorButton').addEventListener('click', () => {
-        const code = mermaidTextarea.value;
+        const code = mermaidTextarea.value.trim();
         if (!code) return showMessage("No Mermaid code to open.");
 
         try {
             // Use the compression function defined globally
             const compressed = compressToPakoBase64(code);
-            const liveUrl = `https://mermaid.live/edit#${compressed}`;
+            // FIX: Ensure the #pako: prefix is used
+            const liveUrl = `https://mermaid.live/edit#pako:${compressed}`; 
             window.open(liveUrl, '_blank');
+            showMessage("Opening Mermaid Live Editor...");
         } catch (error) {
             showMessage("Error creating Live Editor URL.");
             console.error("Compression error:", error);
         }
     });
 
-    // === ZOOM Controls (Placeholder setup) ===
-    document.getElementById('zoomInBtn').addEventListener('click', () => showMessage('Zoom functionality needs full implementation.'));
-    document.getElementById('zoomOutBtn').addEventListener('click', () => showMessage('Zoom functionality needs full implementation.'));
-    document.getElementById('zoomResetBtn').addEventListener('click', () => showMessage('Reset zoom functionality needs full implementation.'));
-    document.getElementById('zoomFitBtn').addEventListener('click', () => showMessage('Fit zoom functionality needs full implementation.'));
+    // =======================================================
+    // === ➕ Zoom Controls Implementation ===
+    // =======================================================
+
+    // 1. Zoom In (＋)
+    zoomInBtn.addEventListener('click', () => {
+        currentZoom = Math.min(2.0, currentZoom + 0.1); // Max zoom of 200%
+        applyZoomTransform();
+        showMessage(`Zoom: ${Math.round(currentZoom * 100)}%`);
+    });
+
+    // 2. Zoom Out (－)
+    zoomOutBtn.addEventListener('click', () => {
+        currentZoom = Math.max(0.4, currentZoom - 0.1); // Min zoom of 40%
+        applyZoomTransform();
+        showMessage(`Zoom: ${Math.round(currentZoom * 100)}%`);
+    });
+
+    // 3. Zoom Reset
+    zoomResetBtn.addEventListener('click', () => {
+        currentZoom = 1.0;
+        applyZoomTransform();
+        showMessage('Zoom Reset (100%)');
+    });
+
+    // 4. Zoom Fit 
+    zoomFitBtn.addEventListener('click', () => {
+        const svgElement = renderTarget.querySelector('svg');
+        const scrollBox = document.getElementById('diagramScrollBox');
+
+        if (!svgElement || !scrollBox) return showMessage('Diagram not ready to fit.');
+        
+        // Get natural dimensions of the SVG
+        const svgBounds = svgElement.getBoundingClientRect();
+        const svgWidth = svgBounds.width;
+        
+        // Get visible width of the scroll container
+        const containerWidth = scrollBox.clientWidth;
+
+        if (svgWidth > 0 && containerWidth > 0) {
+            // Calculate the scale needed to make the SVG fit the container width
+            // We subtract a small margin (e.g., 20px) for padding
+            currentZoom = (containerWidth - 20) / svgWidth;
+            currentZoom = Math.min(1.0, currentZoom); // Don't scale up past 100%
+            applyZoomTransform();
+            showMessage(`Zoom Fit: ${Math.round(currentZoom * 100)}%`);
+        } else {
+            showMessage('Cannot calculate fit zoom.');
+        }
+    });
+
+    // =======================================================
+    // === 🖱️ Drag-and-Drop Node Palette Logic ===
+    // =======================================================
+
+    // 1. Get all draggable nodes from the palette
+    const draggableNodes = document.querySelectorAll('#nodePalette [draggable="true"]');
+
+    // 2. Add dragstart event listener to each node
+    draggableNodes.forEach(node => {
+        node.addEventListener('dragstart', (e) => {
+            const shape = node.getAttribute('data-shape');
+            e.dataTransfer.setData('text/plain', shape);
+            e.dataTransfer.effectAllowed = 'copy';
+            
+            console.log(`Drag started for shape: ${shape}`);
+            showMessage(`Dragging ${shape} node...`);
+        });
+    });
+
+    // 3. Add dragover and drop handlers to the body for testing
+    const dropTarget = document.body; 
+
+    dropTarget.addEventListener('dragover', (e) => {
+        e.preventDefault(); 
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    dropTarget.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const shape = e.dataTransfer.getData('text/plain');
+
+        if (shape && draggableNodes.length > 0) {
+            console.log(`Node dropped: ${shape} at (${e.clientX}, ${e.clientY})`);
+            showMessage(`Successfully dropped a ${shape} node! (Requires full canvas implementation)`);
+        } else {
+            // If dragging something else or if the target is wrong, quietly ignore
+        }
+    });
+
 
     // =======================================================
     // === ⚡ AI Assistant (Call /api/ai-edit) ===
@@ -399,12 +523,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!currentCode) return showMessage("Please generate or enter Mermaid code first.");
         if (!prompt) return showMessage("Please enter a modification for the AI.");
 
-        // We removed the key check here and moved it inside runAiEdit()
         runAiEdit(prompt, currentCode);
     });
 
     async function runAiEdit(prompt, currentCode) {
-        // 1. Check/Prompt for API Key (Reset logic happens in catch block)
+        // 1. Check/Prompt for API Key 
         if (!userApiKey) {
             userApiKey = await promptForApiKey();
             if (!userApiKey) {
