@@ -11,19 +11,18 @@
 </head>
 
 <body class="bg-gray-100 text-gray-800 font-sans p-6">
-  <!-- API Key Input Section -->
-  <div class="mt-4">
-    <label class="text-sm font-medium text-gray-700">Enter API Key:</label>
-    <div class="flex gap-2">
-      <input type="text" id="apiKeyInput" class="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter API Key" />
-      <button id="loadApiKeyButton" class="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition">
-        Load from .txt
-      </button>
-    </div>
+  <!-- Node Palette -->
+  <div id="nodePalette"
+    class="fixed left-4 top-1/4 bg-white rounded-xl shadow-lg p-4 space-y-2 border border-gray-200 z-50">
+    <h4 class="font-semibold text-indigo-700 mb-2 text-sm">Drag Nodes</h4>
+    <div draggable="true" data-shape="process" class="cursor-grab px-2 py-1 bg-indigo-100 rounded">Process</div>
+    <div draggable="true" data-shape="decision" class="cursor-grab px-2 py-1 bg-yellow-100 rounded">Decision</div>
+    <div draggable="true" data-shape="terminator" class="cursor-grab px-2 py-1 bg-red-100 rounded">Start / End</div>
+    <div draggable="true" data-shape="io" class="cursor-grab px-2 py-1 bg-green-100 rounded">Input / Output</div>
+    <div draggable="true" data-shape="subroutine" class="cursor-grab px-2 py-1 bg-blue-100 rounded">Subroutine</div>
+    <div draggable="true" data-shape="database" class="cursor-grab px-2 py-1 bg-purple-100 rounded">Database</div>
+    <div draggable="true" data-shape="note" class="cursor-grab px-2 py-1 bg-gray-100 rounded">Note</div>
   </div>
-
-  <!-- File Input to Load API Key -->
-  <input type="file" id="apiKeyFileInput" accept=".txt" class="hidden" onchange="loadApiKeyFromFile(event)" />
 
   <div class="max-w-4xl mx-auto space-y-6 relative">
     <h1 class="text-3xl font-bold text-center text-indigo-700">
@@ -85,26 +84,28 @@
       </div>
 
       <div id="diagramPreview"
-        class="p-4 border border-gray-200 rounded-lg bg-gray-50 min-h-[200px] relative">
+		  class="p-4 border border-gray-200 rounded-lg bg-gray-50 min-h-[200px] relative">
 
-        <p id="previewMessage" class="text-gray-500">Diagram preview will appear here.</p>
+		  <p id="previewMessage" class="text-gray-500">Diagram preview will appear here.</p>
 
-        <!-- ZOOM CONTROLS -->
-        <div class="flex gap-2 mb-2">
-          <button id="zoomInBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">＋</button>
-          <button id="zoomOutBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">－</button>
-          <button id="zoomResetBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Reset</button>
-          <button id="zoomFitBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Fit</button>
-        </div>
+		  <!-- ZOOM CONTROLS -->
+		  <div class="flex gap-2 mb-2">
+			<button id="zoomInBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">＋</button>
+			<button id="zoomOutBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">－</button>
+			<button id="zoomResetBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Reset</button>
+			<button id="zoomFitBtn" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Fit</button>
+		  </div>
 
-        <!-- SCROLL BOX -->
-        <div id="diagramScrollBox"
-          class="w-full overflow-auto border rounded-lg bg-white p-2"
-          style="max-height: 70vh;">
+		  <!-- SCROLL BOX -->
+		  <div id="diagramScrollBox"
+			  class="w-full overflow-auto border rounded-lg bg-white p-2"
+			  style="max-height: 70vh;">
 
-          <div id="mermaidRenderTarget" class="w-full"></div>
-        </div>
-      </div>
+			  <div id="mermaidRenderTarget" class="w-full"></div>
+		  </div>
+	  </div>
+
+
 
       <!-- AI Assistant -->
       <div class="mt-6 border-t pt-4">

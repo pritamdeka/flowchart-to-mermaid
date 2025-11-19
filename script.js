@@ -79,8 +79,79 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // === API Key Popup Modal ===
+  async function promptForApiKey() {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className =
+        "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+      modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xl p-6 w-96 space-y-4 text-gray-700">
+          <h2 class="text-lg font-semibold text-indigo-600 text-center">Enter API Key</h2>
+          <p class="text-sm text-gray-500 text-center">Provide your API key or upload a .txt file containing it.</p>
+          <input type="text" id="apiKeyInput" placeholder="Paste API key here"
+                 class="w-full border border-gray-300 p-2 rounded focus:ring-indigo-500 focus:border-indigo-500" />
+          <input type="file" id="apiKeyFileInput" accept=".txt"
+                 class="w-full text-sm text-gray-500" />
+          <div class="flex justify-end gap-3 pt-3">
+            <button id="cancelApiKey" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+            <button id="confirmApiKey" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Continue</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const input = modal.querySelector("#apiKeyInput");
+      const fileInput = modal.querySelector("#apiKeyFileInput");
+      const cancelBtn = modal.querySelector("#cancelApiKey");
+      const confirmBtn = modal.querySelector("#confirmApiKey");
+
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            input.value = ev.target.result.trim();
+          };
+          reader.readAsText(file);
+        }
+      });
+
+      cancelBtn.onclick = () => {
+        document.body.removeChild(modal);
+        resolve(null);
+      };
+
+      confirmBtn.onclick = () => {
+        const key = input.value.trim();
+        document.body.removeChild(modal);
+        resolve(key);
+      };
+    });
+  }
+
   // === Generate Mermaid Code ===
-  convertButton.addEventListener("click", generateMermaidCode);
+  convertButton.addEventListener("click", async () => {
+    if (!uploadedBase64Image) return showMessage("Please upload an image first.");
+
+    userApiKey = await promptForApiKey();
+    if (!userApiKey) {
+      showMessage("API key required to continue.");
+      return;
+    }
+
+    // Validate key type
+    if (selectedModel.startsWith("gpt-") && !userApiKey.startsWith("sk-")) {
+      return showMessage("Invalid API key for GPT models (must start with sk-).");
+    }
+    if (selectedModel.startsWith("gemini") && userApiKey.startsWith("sk-")) {
+      return showMessage("Invalid API key for Gemini models.");
+    }
+
+    generateMermaidCode();
+  });
 
   async function generateMermaidCode() {
     if (!uploadedBase64Image || !userApiKey) {
