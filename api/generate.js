@@ -80,7 +80,8 @@ export default async function handler(req, res) {
                         ],
                     },
                 ],
-                config: {
+                // FIX: Renamed 'config' to 'generationConfig' to match the Gemini API spec
+                generationConfig: {
                     temperature: 0,
                     maxOutputTokens: 2000,
                 },

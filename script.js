@@ -128,8 +128,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // === Model Selector ===
+    // We'll store the previous model prefix for comparison (e.g., 'gpt' or 'gemini')
+    let previousModelPrefix = selectedModel.split('-')[0];
+
     modelSelector.addEventListener("change", (e) => {
-        selectedModel = e.target.value;
+        const newModel = e.target.value;
+        const newModelPrefix = newModel.split('-')[0];
+
+        // CONDITION: Reset API key only if the vendor prefix has changed (e.g., gpt -> gemini)
+        if (newModelPrefix !== previousModelPrefix) {
+            userApiKey = null;
+            showMessage(`Model switched to ${newModel}. API Key required for new vendor.`);
+        } else {
+            // Keep existing key if the vendor is the same (e.g., gpt-4.1 -> gpt-4.1-mini)
+            showMessage(`Model switched to ${newModel}. API Key retained.`);
+        }
+
+        // Update global state variables
+        selectedModel = newModel;
+        previousModelPrefix = newModelPrefix; // Update the prefix for the next comparison
+        
+        // Reset non-key related state regardless of vendor switch
         uploadedBase64Image = null;
         uploadedFileName = "diagram";
         document.getElementById("imageInput").value = "";
@@ -138,7 +157,6 @@ document.addEventListener("DOMContentLoaded", () => {
         previewMessage.textContent = "Upload a new image for this model.";
         imagePreview.classList.add("hidden");
         convertButton.disabled = true;
-        showMessage(`Model switched to ${selectedModel}.`);
     });
 
     
