@@ -1,6 +1,50 @@
 document.addEventListener("DOMContentLoaded", () => {
 
-// === Compression utility for Mermaid.live ===
+// =============================================
+// ==========  API KEY (IN MEMORY)  ============
+// =============================================
+let userApiKey = null;
+
+const apiKeyModal = document.getElementById("apiKeyModal");
+const openApiKeyModal = document.getElementById("openApiKeyModal");
+const saveApiKeyBtn = document.getElementById("saveApiKey");
+const cancelApiKeyBtn = document.getElementById("cancelApiKey");
+const apiKeyInput = document.getElementById("apiKeyInput");
+const apiKeyFileInput = document.getElementById("apiKeyFile");
+
+// open modal
+openApiKeyModal.addEventListener("click", () => {
+  apiKeyModal.classList.remove("hidden");
+});
+
+// cancel modal
+cancelApiKeyBtn.addEventListener("click", () => {
+  apiKeyModal.classList.add("hidden");
+});
+
+// load key from txt file
+apiKeyFileInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  apiKeyInput.value = text.trim();
+});
+
+// save key
+saveApiKeyBtn.addEventListener("click", () => {
+  const key = apiKeyInput.value.trim();
+  if (!key) {
+    alert("API key cannot be empty.");
+    return;
+  }
+  userApiKey = key;
+  apiKeyModal.classList.add("hidden");
+  showMessage("API key saved!");
+});
+
+// =============================================
+// ======== COMPRESSION FOR MERMAID.LIVE =======
+// =============================================
 function compressToPakoBase64(input) {
   const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
   const data = new TextEncoder().encode(json);
@@ -9,13 +53,14 @@ function compressToPakoBase64(input) {
   return btoa(str);
 }
 
-// === Globals ===
+// =============================================
+// =============== GLOBALS =====================
+// =============================================
 let uploadedBase64Image = null;
 let uploadedFileName = "diagram";
 let selectedModel = "gpt-4.1";
-let deleteMode = false;
 
-// Zoom + Pan globals
+// zoom + pan
 let scale = 1;
 let panX = 0;
 let panY = 0;
@@ -23,7 +68,9 @@ let isPanning = false;
 let startX = 0;
 let startY = 0;
 
-// === DOM Elements ===
+// =============================================
+// =============== ELEMENTS ====================
+// =============================================
 const scrollBox = document.getElementById("diagramScrollBox");
 const modelSelector = document.getElementById("modelSelector");
 const convertButton = document.getElementById("convertButton");
@@ -32,10 +79,14 @@ const renderTarget = document.getElementById("mermaidRenderTarget");
 const previewMessage = document.getElementById("previewMessage");
 const loadingOverlay = document.getElementById("loadingOverlay");
 
-// === Mermaid Init ===
+// =============================================
+// =============== MERMAID INIT ================
+// =============================================
 mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
 
-// === Model Selector ===
+// =============================================
+// ============ MODEL SELECTOR =================
+// =============================================
 modelSelector.addEventListener("change", (e) => {
   selectedModel = e.target.value;
   uploadedBase64Image = null;
@@ -48,10 +99,13 @@ modelSelector.addEventListener("change", (e) => {
   showMessage(`Model switched to ${selectedModel}.`);
 });
 
-// === Image Preview ===
+// =============================================
+// ============= IMAGE PREVIEW =================
+// =============================================
 window.previewImage = function(event) {
   const file = event.target.files[0];
   const preview = document.getElementById("imagePreview");
+
   if (file) {
     uploadedFileName = file.name.split(".")[0];
     const reader = new FileReader();
@@ -59,17 +113,24 @@ window.previewImage = function(event) {
       uploadedBase64Image = e.target.result.split(",")[1];
       preview.src = e.target.result;
       preview.classList.remove("hidden");
-      convertButton.disabled = false;
+
+      if (userApiKey) convertButton.disabled = false;
     };
     reader.readAsDataURL(file);
   }
 };
 
-// === Generate Mermaid Code ===
+// =============================================
+// ========= GENERATE MERMAID CODE =============
+// =============================================
 convertButton.addEventListener("click", generateMermaidCode);
 
 async function generateMermaidCode() {
-  if (!uploadedBase64Image) return showMessage("Please upload an image first.");
+  if (!uploadedBase64Image)
+    return showMessage("Please upload an image first.");
+  if (!userApiKey)
+    return showMessage("Please enter your API key first.");
+
   convertButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
   document.getElementById("results").classList.remove("hidden");
@@ -79,8 +140,14 @@ async function generateMermaidCode() {
   try {
     const response = await fetch("/api/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: uploadedBase64Image, model: selectedModel }),
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-API-Key": userApiKey     // 🔥 send key to backend
+      },
+      body: JSON.stringify({
+        image: uploadedBase64Image,
+        model: selectedModel
+      }),
     });
 
     const result = await response.json();
@@ -99,12 +166,15 @@ async function generateMermaidCode() {
   }
 }
 
-// === Render Diagram ===
+// =============================================
+// ============= RENDER DIAGRAM ================
+// =============================================
 mermaidTextarea.addEventListener("input", debounce(renderDiagram, 600));
 
 async function renderDiagram() {
   const code = mermaidTextarea.value.trim();
   renderTarget.innerHTML = "";
+
   if (!code) {
     previewMessage.textContent = "Enter Mermaid code to preview.";
     previewMessage.classList.remove("hidden");
@@ -115,21 +185,27 @@ async function renderDiagram() {
     const tempDiv = document.createElement("div");
     tempDiv.classList.add("mermaid");
     tempDiv.textContent = code;
+
     renderTarget.innerHTML = "";
     renderTarget.appendChild(tempDiv);
+
     await mermaid.run({ nodes: [tempDiv] });
+
     previewMessage.classList.add("hidden");
 
     autoScaleDiagram();
     applyTransform();
     enableInlineEditing();
+
   } catch {
     previewMessage.textContent = "Invalid Mermaid syntax.";
     previewMessage.classList.remove("hidden");
   }
 }
 
-// === Inline Editing ===
+// =============================================
+// ============== INLINE EDITING ===============
+// =============================================
 function enableInlineEditing() {
   renderTarget.querySelectorAll("text").forEach((t) => {
     t.style.cursor = "pointer";
@@ -156,10 +232,11 @@ function updateNodeText(oldText, newText) {
   renderDiagram();
 }
 
-// === Drag-and-Drop Node Palette ===
+// =============================================
+// ============== DRAG & DROP NODES ============
+// =============================================
 const nodePalette = document.getElementById("nodePalette");
 const diagramArea = document.getElementById("diagramPreview");
-
 let draggedShape = null;
 
 nodePalette.querySelectorAll("[draggable='true']").forEach((item) => {
@@ -190,18 +267,24 @@ diagramArea.addEventListener("drop", (e) => {
   }
 
   let code = mermaidTextarea.value.trim();
-  if (!code.startsWith("graph") && !code.startsWith("flowchart")) code = "flowchart TD\n" + code;
+  if (!code.startsWith("graph") && !code.startsWith("flowchart"))
+    code = "flowchart TD\n" + code;
+
   code += `\n${shapeSyntax}`;
   mermaidTextarea.value = code;
   renderDiagram();
+
   showMessage(`Added new ${draggedShape}: ${label}`);
   draggedShape = null;
 });
 
-// === Download SVG ===
+// =============================================
+// ============== DOWNLOAD SVG =================
+// =============================================
 document.getElementById("downloadSvg").addEventListener("click", () => {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return showMessage("No diagram to download.");
+
   const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -210,40 +293,53 @@ document.getElementById("downloadSvg").addEventListener("click", () => {
   URL.revokeObjectURL(link.href);
 });
 
-// === Download .MMD ===
+// =============================================
+// =============== DOWNLOAD MMD ================
+// =============================================
 document.getElementById("downloadMmd").addEventListener("click", () => {
   const code = mermaidTextarea.value;
-  if (!code || !code.trim()) return showMessage("No Mermaid code to save.");
+  if (!code.trim()) return showMessage("No Mermaid code to save.");
+
   const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = `${uploadedFileName}.mmd`;
   link.click();
+
   setTimeout(() => window.URL.revokeObjectURL(url), 500);
   showMessage(`Saved ${uploadedFileName}.mmd`);
 });
 
-// === Mermaid Live Editor ===
+// =============================================
+// ============== MERMAID LIVE ================
+// =============================================
 document.getElementById("openEditorButton").addEventListener("click", async () => {
   const code = mermaidTextarea.value.trim();
   if (!code) return showMessage("No Mermaid code to edit yet!");
+
   try {
     await navigator.clipboard.writeText(code);
     const compressed = compressToPakoBase64(code);
-    const editorUrl = `https://mermaid.live/edit#pako:${compressed}`;
-    window.open(editorUrl, "_blank");
+    window.open(`https://mermaid.live/edit#pako:${compressed}`, "_blank");
+
     showMessage("Opening Mermaid Live Editor...");
   } catch {
     showMessage("Could not open editor or copy code.");
   }
 });
 
-// === AI Editing ===
+// =============================================
+// ============ AI EDITING BUTTON ==============
+// =============================================
 document.getElementById("runAiButton")?.addEventListener("click", async () => {
   const prompt = document.getElementById("aiPrompt")?.value.trim();
-  const currentCode = mermaidTextarea.value.trim();
   if (!prompt) return showMessage("Enter a command for the AI Assistant.");
+
+  if (!userApiKey)
+    return showMessage("Please enter your API key first.");
+
+  const currentCode = mermaidTextarea.value.trim();
   if (!currentCode) return showMessage("No Mermaid code to edit.");
 
   loadingOverlay.classList.remove("hidden");
@@ -251,7 +347,10 @@ document.getElementById("runAiButton")?.addEventListener("click", async () => {
   try {
     const res = await fetch("/api/ai-edit", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-API-Key": userApiKey     // 🔥 pass key securely
+      },
       body: JSON.stringify({ prompt, currentCode }),
     });
 
@@ -270,7 +369,9 @@ document.getElementById("runAiButton")?.addEventListener("click", async () => {
   }
 });
 
-// === Helpers ===
+// =============================================
+// ============== HELPERS ======================
+// =============================================
 function debounce(fn, delay) {
   let timeout;
   return (...args) => {
@@ -279,30 +380,20 @@ function debounce(fn, delay) {
   };
 }
 
-// === ZOOM + PAN FUNCTIONS ===
+// =============================================
+// ============== ZOOM CONTROLS ================
+// =============================================
 function applyTransform() {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return;
+
   svg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
   svg.style.transformOrigin = "top left";
 }
 
-function zoomIn() {
-  scale *= 1.15;
-  applyTransform();
-}
-
-function zoomOut() {
-  scale /= 1.15;
-  applyTransform();
-}
-
-function resetZoom() {
-  scale = 1;
-  panX = 0;
-  panY = 0;
-  applyTransform();
-}
+function zoomIn() { scale *= 1.15; applyTransform(); }
+function zoomOut() { scale /= 1.15; applyTransform(); }
+function resetZoom() { scale = 1; panX = 0; panY = 0; applyTransform(); }
 
 function fitToScreen() {
   const svg = renderTarget.querySelector("svg");
@@ -324,7 +415,7 @@ function fitToScreen() {
   applyTransform();
 }
 
-// === Drag to Pan ===
+// PANNING
 scrollBox.addEventListener("mousedown", (e) => {
   isPanning = true;
   startX = e.clientX - panX;
@@ -341,7 +432,9 @@ scrollBox.addEventListener("mousemove", (e) => {
 scrollBox.addEventListener("mouseup", () => (isPanning = false));
 scrollBox.addEventListener("mouseleave", () => (isPanning = false));
 
-// === Scaling Control for SVG ===
+// =============================================
+// ============== SVG AUTOSCALE ================
+// =============================================
 function autoScaleDiagram() {
   const svg = renderTarget.querySelector("svg");
   if (!svg) return;
@@ -350,7 +443,9 @@ function autoScaleDiagram() {
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 }
 
-// === UI Messages ===
+// =============================================
+// ============== MESSAGE BOX ==================
+// =============================================
 function showMessage(text) {
   const box = document.getElementById("messageBox");
   box.textContent = text;
@@ -358,7 +453,9 @@ function showMessage(text) {
   setTimeout(() => box.classList.add("hidden"), 3000);
 }
 
-// === Zoom Button Events ===
+// =============================================
+// ========== ZOOM BUTTON HANDLERS =============
+// =============================================
 document.getElementById("zoomInBtn")?.addEventListener("click", zoomIn);
 document.getElementById("zoomOutBtn")?.addEventListener("click", zoomOut);
 document.getElementById("zoomResetBtn")?.addEventListener("click", resetZoom);
