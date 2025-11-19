@@ -9,7 +9,7 @@
 
 let uploadedBase64Image = null;
 let uploadedFileName = "diagram";
-let selectedModel = "gpt-4.1";
+let selectedModel = "gpt-4.1"; // Keeping this model name as per your instruction
 let userApiKey = null; // Key is null until loaded/entered
 
 // Get key DOM elements needed globally
@@ -32,8 +32,6 @@ function compressToPakoBase64(input) {
     const json = JSON.stringify({ code: input, mermaid: { theme: "default" } });
     const data = new TextEncoder().encode(json);
     const deflated = pako.deflate(data, { to: 'string' });
-    // pako.deflate with {to: 'string'} outputs binary string which needs to be base64-encoded
-    // We use btoa(String.fromCharCode.apply(null, deflated)) for robust binary string base64 encoding
     return btoa(String.fromCharCode.apply(null, deflated));
 }
 
@@ -98,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const previewMessage = document.getElementById("previewMessage");
     const diagramScrollBox = document.getElementById("diagramScrollBox");
     const aiPromptInput = document.getElementById("aiPrompt");
+    const runAiButton = document.getElementById("runAiButton");
 
 
     // === Mermaid Init ===
@@ -120,24 +119,72 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     
-    // === API Key Popup Modal ===
+    // =======================================================
+    // === 🔑 API Key Popup Modal (Implemented Logic) ===
+    // =======================================================
     async function promptForApiKey() {
         return new Promise((resolve) => {
-            // Note: Removed the modal creation logic for brevity, 
-            // assuming you have a way to prompt the user or handle the key input.
-            // Placeholder: For now, it immediately resolves to null, you must fill this logic.
-            
-            // --- YOUR API KEY MODAL LOGIC GOES HERE ---
-            
-            // Example of a temporary prompt (replace with your modal):
-            const key = prompt("Please paste your API key to continue:");
-            if (key) {
-                resolve(key.trim());
-            } else {
+            const modal = document.createElement("div");
+            modal.className =
+                "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+            // Modal HTML structure
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl shadow-xl p-6 w-96 space-y-4 text-gray-700">
+                    <h2 class="text-lg font-semibold text-indigo-600 text-center">API Key Required</h2>
+                    <p class="text-sm text-gray-500 text-center">This feature requires your API key for the selected model.</p>
+                    <input type="text" id="modalApiKeyInput" placeholder="Paste API key here (e.g., sk-...)"
+                                class="w-full border border-gray-300 p-2 rounded focus:ring-indigo-500 focus:border-indigo-500" />
+                    <div class="flex items-center gap-2">
+                        <label for="apiKeyFileInput" class="cursor-pointer px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded hover:bg-gray-200">
+                            Upload .txt Key
+                        </label>
+                        <input type="file" id="apiKeyFileInput" accept=".txt" class="hidden" />
+                        <span id="fileNameDisplay" class="text-xs text-gray-500 truncate flex-1">No file chosen</span>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-3">
+                        <button id="cancelApiKey" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                        <button id="confirmApiKey" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Continue</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            const input = modal.querySelector("#modalApiKeyInput");
+            const fileInput = modal.querySelector("#apiKeyFileInput");
+            const fileNameDisplay = modal.querySelector("#fileNameDisplay");
+            const cancelBtn = modal.querySelector("#cancelApiKey");
+            const confirmBtn = modal.querySelector("#confirmApiKey");
+
+            // Handle file upload selection
+            fileInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    fileNameDisplay.textContent = file.name;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        // Populate the text input with the key from the file
+                        input.value = ev.target.result.trim();
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+            cancelBtn.onclick = () => {
+                document.body.removeChild(modal);
                 resolve(null);
-            }
+            };
+
+            confirmBtn.onclick = () => {
+                const key = input.value.trim();
+                document.body.removeChild(modal);
+                resolve(key);
+            };
         });
     }
+    // =======================================================
+
 
     // === Generate Mermaid Code (Core API Call Logic) ===
     convertButton.addEventListener("click", async () => {
@@ -153,8 +200,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // 2. Quick Key Validation (client-side guess)
-        if (selectedModel.startsWith("gpt-") && !userApiKey.startsWith("sk-")) {
+        // This is a basic check; server does the full check
+        const isGpt = selectedModel.startsWith("gpt-");
+        if (isGpt && !userApiKey.startsWith("sk-")) {
             return showMessage("Invalid API key format for GPT models (expected 'sk-').");
+        }
+        if (!isGpt && userApiKey.startsWith("sk-")) {
+             return showMessage("Invalid API key for Gemini models (should not start with 'sk-').");
         }
         
         // 3. Start Conversion
@@ -306,15 +358,69 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('zoomResetBtn').addEventListener('click', () => showMessage('Reset zoom functionality needs full implementation.'));
     document.getElementById('zoomFitBtn').addEventListener('click', () => showMessage('Fit zoom functionality needs full implementation.'));
 
-    // === AI Assistant (Placeholder setup) ===
-    document.getElementById('runAiButton').addEventListener('click', () => {
-        const prompt = aiPromptInput.value;
+    // =======================================================
+    // === ⚡ AI Assistant (Call /api/ai-edit) ===
+    // =======================================================
+
+    runAiButton.addEventListener('click', async () => {
+        const prompt = aiPromptInput.value.trim();
+        const currentCode = mermaidTextarea.value.trim();
+
+        if (!currentCode) return showMessage("Please generate or enter Mermaid code first.");
         if (!prompt) return showMessage("Please enter a modification for the AI.");
-        
-        showMessage(`AI request sent: "${prompt}". Logic needs to be implemented.`);
-        aiPromptInput.value = '';
+
+        // 1. Prompt for API Key (if not already set)
+        if (!userApiKey) {
+            userApiKey = await promptForApiKey();
+            if (!userApiKey) {
+                showMessage("API key required to continue.");
+                return;
+            }
+        }
+
+        // 2. Start AI Edit Process
+        runAiEdit(prompt, currentCode);
     });
+
+    async function runAiEdit(prompt, currentCode) {
+        runAiButton.disabled = true;
+        loadingOverlay.classList.remove("hidden");
+        aiPromptInput.value = '';
+        showMessage("Sending request to AI Assistant...");
+        
+        try {
+            const response = await fetch("/api/ai-edit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt,
+                    currentCode,
+                    model: selectedModel,
+                    apiKey: userApiKey
+                }),
+            });
+
+            const result = await response.json();
+            
+            if (result.error) throw new Error(result.error);
+
+            const updatedCode = result.updatedCode?.trim();
+            if (!updatedCode) throw new Error("AI returned no updated code.");
+            
+            // Update the textarea with the new code, which automatically triggers renderDiagram via the 'input' event listener
+            mermaidTextarea.value = updatedCode;
+            mermaidTextarea.dispatchEvent(new Event('input')); // Force rendering if model didn't trigger 'input'
+
+            showMessage("AI updated the diagram successfully!");
+
+        } catch (err) {
+            showMessage("AI Edit Error: " + err.message);
+        } finally {
+            loadingOverlay.classList.add("hidden");
+            runAiButton.disabled = false;
+        }
+    }
     
-    // Initial state setup (if needed)
+    // Initial state setup 
     convertButton.disabled = true;
 });
