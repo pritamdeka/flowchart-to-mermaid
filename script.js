@@ -13,9 +13,10 @@ let uploadedFileName = "diagram";
 let selectedModel = "gpt-4.1"; 
 let userApiKey = null; // Key is null until loaded/entered
 
-// === NEW GLOBAL STATE FOR ZOOM ===
+// === GLOBAL STATE FOR ZOOM & NODE COUNT ===
 let currentZoom = 1.0; 
-// ===================================
+let nodeCounter = 1; 
+// ==========================================
 
 // Get key DOM elements needed globally
 const imagePreview = document.getElementById("imagePreview");
@@ -270,7 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (!isGpt && userApiKey.startsWith("sk-")) {
             userApiKey = null;
-             return showMessage("Invalid API key for Gemini models (should not start with 'sk-').");
+            return showMessage("Invalid API key for Gemini models (should not start with 'sk-').");
         }
         
         convertButton.disabled = true;
@@ -473,25 +474,77 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =======================================================
-    // === 🖱️ Drag-and-Drop Node Palette Logic ===
+    // === 🔗 Connection Drawing Logic (Manual Prompt) ===
     // =======================================================
+    
+    // Utility to check if diagram syntax exists
+    function isDiagramStarted(code) {
+        return code.trim().startsWith('flowchart') || 
+               code.trim().startsWith('graph') || 
+               code.trim().startsWith('sequenceDiagram');
+    }
+
+    window.drawConnection = function() { // Made global for console testing
+        let currentCode = mermaidTextarea.value.trim();
+
+        if (!isDiagramStarted(currentCode)) {
+            showMessage("Start a diagram first (e.g., drag a node).");
+            return;
+        }
+
+        const sourceId = prompt("Enter the Source Node ID (e.g., N1):");
+        if (!sourceId) return;
+
+        const targetId = prompt(`Enter the Target Node ID for the arrow from ${sourceId} (e.g., N2):`);
+        if (!targetId) return;
+        
+        const linkLabel = prompt("Enter a label for the arrow (optional):");
+
+        let arrowCode;
+        if (linkLabel) {
+            arrowCode = `${sourceId} -- "${linkLabel}" --> ${targetId}`;
+        } else {
+            arrowCode = `${sourceId} --> ${targetId}`;
+        }
+
+        // Insert the new connection code at the end of the existing code
+        const newCode = currentCode + `\n    ${arrowCode}`;
+        
+        mermaidTextarea.value = newCode;
+        mermaidTextarea.dispatchEvent(new Event('input')); // Trigger render
+
+        showMessage(`Added connection: ${sourceId} -> ${targetId}`);
+    }
+
+
+    // =======================================================
+    // === 🖱️ Drag-and-Drop Node Palette Logic (UPDATED) ===
+    // =======================================================
+
+    // Map shape names to Mermaid syntax wrappers
+    const nodeSyntaxMap = {
+        process: (id, label) => `${id}["${label}"]`,
+        decision: (id, label) => `${id}{${label}}`,
+        terminator: (id, label) => `${id}([${label}])`,
+        io: (id, label) => `${id}[/${label}/]`,
+        subroutine: (id, label) => `${id}[(${label})]`,
+        database: (id, label) => `${id}[(${label})]`,
+        // Note: Note syntax requires a specific node ID to attach to, simplifying for drag-and-drop
+        note: (id, label) => `N_temp${id}[Note attachment point]\n    note right of N_temp${id} : ${label}`
+    };
 
     // 1. Get all draggable nodes from the palette
     const draggableNodes = document.querySelectorAll('#nodePalette [draggable="true"]');
 
-    // 2. Add dragstart event listener to each node
     draggableNodes.forEach(node => {
         node.addEventListener('dragstart', (e) => {
             const shape = node.getAttribute('data-shape');
             e.dataTransfer.setData('text/plain', shape);
             e.dataTransfer.effectAllowed = 'copy';
-            
-            console.log(`Drag started for shape: ${shape}`);
             showMessage(`Dragging ${shape} node...`);
         });
     });
 
-    // 3. Add dragover and drop handlers to the body for testing
     const dropTarget = document.body; 
 
     dropTarget.addEventListener('dragover', (e) => {
@@ -503,11 +556,44 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const shape = e.dataTransfer.getData('text/plain');
 
-        if (shape && draggableNodes.length > 0) {
-            console.log(`Node dropped: ${shape} at (${e.clientX}, ${e.clientY})`);
-            showMessage(`Successfully dropped a ${shape} node! (Requires full canvas implementation)`);
-        } else {
-            // If dragging something else or if the target is wrong, quietly ignore
+        if (shape && nodeSyntaxMap[shape]) {
+            const newNodeId = `N${nodeCounter++}`;
+            const defaultLabel = shape.charAt(0).toUpperCase() + shape.slice(1);
+            
+            const nodeLabel = prompt(`Enter label for the new ${defaultLabel} node (ID: ${newNodeId}):`, defaultLabel) || defaultLabel;
+
+            // Generate the Mermaid code for the new node
+            const newNodeCode = nodeSyntaxMap[shape](newNodeId, nodeLabel);
+
+            // 3. Insert Code into the Textarea
+            let currentCode = mermaidTextarea.value.trim();
+            
+            // If the diagram is empty, initialize a flowchart
+            if (!isDiagramStarted(currentCode)) {
+                currentCode = `flowchart TD`; 
+            }
+            
+            // Insert new node after the diagram type definition (first line)
+            const firstLineBreak = currentCode.indexOf('\n');
+            let newCode;
+
+            if (firstLineBreak === -1) {
+                // Only diagram type (e.g., 'flowchart TD') exists
+                newCode = `${currentCode}\n    ${newNodeCode}`;
+            } else {
+                // Insert new node after the diagram type definition (first line)
+                newCode = currentCode.substring(0, firstLineBreak + 1) + 
+                          `    ${newNodeCode}\n` + 
+                          currentCode.substring(firstLineBreak + 1);
+            }
+            
+            // 4. Update the Textarea and Trigger Rendering
+            mermaidTextarea.value = newCode;
+            mermaidTextarea.dispatchEvent(new Event('input'));
+
+            showMessage(`Added node ${newNodeId}: "${nodeLabel}" to the diagram.`);
+        } else if (shape) {
+            showMessage(`Unknown drop payload.`);
         }
     });
 
@@ -544,7 +630,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (!isGpt && userApiKey.startsWith("sk-")) {
             userApiKey = null;
-             return showMessage("Invalid API key for Gemini models (should not start with 'sk-').");
+            return showMessage("Invalid API key for Gemini models (should not start with 'sk-').");
         }
         
         runAiButton.disabled = true;
